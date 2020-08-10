@@ -25,7 +25,6 @@ typedef struct{
 	int hit;
 	int miss;
 	int evict;
-	int time;
 }cache_param;
 
 // Cache Line
@@ -49,7 +48,7 @@ typedef struct{
 cache init_cache(mem_addr num_sets, int num_lines, mem_addr block_size){
 	cache new_cache;
 	int set_idx, line_idx;
-	
+	// Dynamically allocating space
 	new_cache.sets = (cache_set *)malloc(sizeof(cache_set) * num_sets);
 	
 	for(set_idx = 0; set_idx < num_sets; set_idx++){
@@ -78,17 +77,19 @@ void exit_cache(cache sim_cache, mem_addr num_sets){
 	free(sim_cache.sets);
 }
 
-
-cache_param run(cache sim_cache, cache_param param, mem_addr addr){
-	int line_idx;
+//run_cache(cache, pointer to cache parameter, 64bit addr, verbosity -> void) : Simulate cache, record hit/miss/eviction
+void run_cache(cache sim_cache, cache_param *param, mem_addr addr){
+	int line_idx = 0;
 	int evict_idx = 0;
-	int num_lines = param.E;
-	int full = 1;
+	int num_lines = param->E;
+	int full = 1;			// Check if the cache set is full
+	
+	static int time = 0;	// Static time variable to keep track of timestamp
 	
 	// Tag bits
-	mem_addr tag = addr >> (param.s + param.b);
+	mem_addr tag = addr >> (param->s + param->b);
 	// Set index bits
-	mem_addr num = (addr << (64 - (param.s + param.b))) >> (64 - param.s);
+	mem_addr num = (addr << (64 - (param->s + param->b))) >> (64 - param->s);
 	
 	cache_set set = sim_cache.sets[num];
 	cache_line line;
@@ -96,16 +97,16 @@ cache_param run(cache sim_cache, cache_param param, mem_addr addr){
 	// Look around the determined set
 	for(line_idx = 0; line_idx < num_lines; line_idx++){
 		line = set.lines[line_idx];
-		// Valid bit okay & Tag coincide 
+		// Valid bit okay & Tag coincide -> hit
 		if(line.valid && line.tag == tag){
-			param.hit++;
-			set.lines[line_idx].timestamp = param.time;
-			param.time++;
-			return param;
+			param->hit++;
+			set.lines[line_idx].timestamp = time;
+			time++;
+			return;
 		}
 	}
-	// All hitting cases returned
-	param.miss++;
+	// All hitting cases returned -> miss
+	param->miss++;
 	
 	// Check if the cache set is full to determine eviction
 	for(line_idx = 0; line_idx < num_lines; line_idx++){
@@ -121,8 +122,8 @@ cache_param run(cache sim_cache, cache_param param, mem_addr addr){
 	if(!full){
 		set.lines[line_idx].tag = tag;
 		set.lines[line_idx].valid = 1;
-		set.lines[line_idx].timestamp = param.time;
-		param.time++;
+		set.lines[line_idx].timestamp = time;
+		time++;
 	}
 	// Eviction required : Cache is full now
 	else{
@@ -134,13 +135,14 @@ cache_param run(cache sim_cache, cache_param param, mem_addr addr){
 				evict_idx = line_idx;
 			}
 		}
+		// Evict!
 		set.lines[evict_idx].tag = tag;
-		set.lines[evict_idx].timestamp = param.time;
-		param.time++;
-		param.evict++;		
+		set.lines[evict_idx].timestamp = time;
+		time++;
+		param->evict++;		
 	}
 	
-	return param;
+	return;
 }
 
 
@@ -212,16 +214,16 @@ int main(int argc, char *argv[])
 					break;
 				
 				case 'L' :
-					param = run(sim_cache, param, addr);
+					run_cache(sim_cache, &param, addr);
 					break;
 				
-				case 'S' :
-					param = run(sim_cache, param, addr);
+				case 'S' :;
+					run_cache(sim_cache, &param, addr);
 					break;
 				
 				case 'M' :
-					param = run(sim_cache, param, addr);
-					param = run(sim_cache, param, addr);
+					run_cache(sim_cache, &param, addr);
+					run_cache(sim_cache, &param, addr);
 					break;
 				
 				default :
@@ -232,11 +234,11 @@ int main(int argc, char *argv[])
 	else{
 		printf("%s : Invalid file name\n", trace);
 	}
-	
-	
+	// Deconstruct all allocated space
 	exit_cache(sim_cache,param.S);
 	fclose(fp);
 	
+	// Report hit, miss, eviction
     printSummary(param.hit, param.miss, param.evict);
 	return 0;
 }
