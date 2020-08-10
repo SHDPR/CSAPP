@@ -44,6 +44,7 @@ typedef struct{
 	cache_set *sets;
 }cache;
 
+// init_cache(num of sets, num of lines, block size -> cache) : Build a new cache
 cache init_cache(mem_addr num_sets, int num_lines, mem_addr block_size){
 	cache new_cache;
 	int set_idx, line_idx;
@@ -65,7 +66,7 @@ cache init_cache(mem_addr num_sets, int num_lines, mem_addr block_size){
 }
 
 
-
+//exit_cache(cache, num of sets -> void) : Destruct a cache
 void exit_cache(cache sim_cache, mem_addr num_sets){
 	int set_idx;
 	
@@ -78,18 +79,36 @@ void exit_cache(cache sim_cache, mem_addr num_sets){
 
 
 
+
+
+
+
+
+
+
+
+
 int main(int argc, char *argv[])
 {
-	char parse;
+	char parse;				// input variable for getopt
+	char *trace = NULL;		// string variable for filename 
+	
+	FILE *fp = NULL;		// file pointer for read
+	char inst;				// char variable for instruction
+	mem_addr addr;			// address variable for instruction
+	int size;				// size int variable for instruction
+	
+	
+	
 	//int verbosity = 0;
 	
-	cache_param param;
-	cache sim_cache;
-	
-	char *trace = NULL;
+	cache_param param;		// parameter storage for cache
+	cache sim_cache;		// cache declaration for sim
+
 	
 	memset(&param, 0, sizeof(cache_param));
 	
+	// Get arguments from the command line through getopt
 	while ((parse = getopt(argc, argv, "s:E:b:t:vh")) != -1){
 		switch(parse){
 			case 's' : 
@@ -103,6 +122,7 @@ int main(int argc, char *argv[])
 				break;
 			case 't' : 
 				trace = optarg;
+				
 				break;
 			case 'v' :
 				//verbosity = 1;
@@ -117,7 +137,7 @@ int main(int argc, char *argv[])
 		}			
 	}
 	
-	
+	// Invalid argument input / Missing required arguments
 	if (param.s == 0 || param.E == 0 || param.b == 0 || trace == NULL){
 		printf("%s : Missing required command line\n", argv[0]);
 	}
@@ -128,11 +148,39 @@ int main(int argc, char *argv[])
 	sim_cache = init_cache(param.S, param.E, param.B);
 	
 	
+	fp = fopen(trace, "r");
+	if(fp != NULL){
+		while(fscanf(fp, " %c %llx,%d", &inst, &addr, &size) == 3){
+			switch(inst){
+				case 'I' :
+					printf("%d\n", size);
+					break;
+				
+				case 'L' :
+					printf("%c\n", inst);
+					break;
+				
+				case 'S' :
+					printf("%c\n", inst);
+					break;
+				
+				case 'M' :
+					printf("%c\n", inst);
+					break;
+				
+				default :
+					break;
+			}
+		}
+	}
+	else{
+		printf("%s : Invalid file name\n", trace);
+	}
+	
+	
 	exit_cache(sim_cache,param.S);
+	fclose(fp);
 	
-	
-	
-	
-    printSummary(0, 0, 0);
+    printSummary(param.hit, param.miss, param.evict);
 	return 0;
 }
