@@ -25,6 +25,7 @@ typedef struct{
 	int hit;
 	int miss;
 	int evict;
+	int time;
 }cache_param;
 
 // Cache Line
@@ -78,14 +79,69 @@ void exit_cache(cache sim_cache, mem_addr num_sets){
 }
 
 
-
-
-
-
-
-
-
-
+cache_param run(cache sim_cache, cache_param param, mem_addr addr){
+	int line_idx;
+	int evict_idx = 0;
+	int num_lines = param.E;
+	int full = 1;
+	
+	// Tag bits
+	mem_addr tag = addr >> (param.s + param.b);
+	// Set index bits
+	mem_addr num = (addr << (64 - (param.s + param.b))) >> (64 - param.s);
+	
+	cache_set set = sim_cache.sets[num];
+	cache_line line;
+	
+	// Look around the determined set
+	for(line_idx = 0; line_idx < num_lines; line_idx++){
+		line = set.lines[line_idx];
+		// Valid bit okay & Tag coincide 
+		if(line.valid && line.tag == tag){
+			param.hit++;
+			set.lines[line_idx].timestamp = param.time;
+			param.time++;
+			return param;
+		}
+	}
+	// All hitting cases returned
+	param.miss++;
+	
+	// Check if the cache set is full to determine eviction
+	for(line_idx = 0; line_idx < num_lines; line_idx++){
+		line = set.lines[line_idx];
+		
+		if(!line.valid){
+			full = 0;
+			break;
+		}
+	}
+	
+	// Eviction not required : Cache is not full
+	if(!full){
+		set.lines[line_idx].tag = tag;
+		set.lines[line_idx].valid = 1;
+		set.lines[line_idx].timestamp = param.time;
+		param.time++;
+	}
+	// Eviction required : Cache is full now
+	else{
+		// Finding a last recently used line
+		line = set.lines[0];
+		for(line_idx = 0; line_idx < num_lines; line_idx++){
+			if(set.lines[line_idx].timestamp < line.timestamp){
+				line = set.lines[line_idx];
+				evict_idx = line_idx;
+			}
+		}
+		set.lines[evict_idx].tag = tag;
+		set.lines[evict_idx].timestamp = param.time;
+		param.time++;
+		param.evict++;		
+	}
+	
+	return param;
+}
 
 
 int main(int argc, char *argv[])
@@ -153,19 +209,19 @@ int main(int argc, char *argv[])
 		while(fscanf(fp, " %c %llx,%d", &inst, &addr, &size) == 3){
 			switch(inst){
 				case 'I' :
-					printf("%d\n", size);
 					break;
 				
 				case 'L' :
-					printf("%c\n", inst);
+					param = run(sim_cache, param, addr);
 					break;
 				
 				case 'S' :
-					printf("%c\n", inst);
+					param = run(sim_cache, param, addr);
 					break;
 				
 				case 'M' :
-					printf("%c\n", inst);
+					param = run(sim_cache, param, addr);
+					param = run(sim_cache, param, addr);
 					break;
 				
 				default :
