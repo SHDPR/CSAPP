@@ -78,7 +78,7 @@ void exit_cache(cache sim_cache, mem_addr num_sets){
 }
 
 //run_cache(cache, pointer to cache parameter, 64bit addr, verbosity -> void) : Simulate cache, record hit/miss/eviction
-void run_cache(cache sim_cache, cache_param *param, mem_addr addr){
+void run_cache(cache sim_cache, cache_param *param, mem_addr addr, int verbosity){
 	int line_idx = 0;
 	int evict_idx = 0;
 	int num_lines = param->E;
@@ -102,6 +102,9 @@ void run_cache(cache sim_cache, cache_param *param, mem_addr addr){
 			param->hit++;
 			set.lines[line_idx].timestamp = time;
 			time++;
+			
+			if(verbosity)
+				printf("HIT ");
 			return;
 		}
 	}
@@ -124,6 +127,9 @@ void run_cache(cache sim_cache, cache_param *param, mem_addr addr){
 		set.lines[line_idx].valid = 1;
 		set.lines[line_idx].timestamp = time;
 		time++;
+		
+		if(verbosity)
+			printf("MISS ");
 	}
 	// Eviction required : Cache is full now
 	else{
@@ -139,7 +145,9 @@ void run_cache(cache sim_cache, cache_param *param, mem_addr addr){
 		set.lines[evict_idx].tag = tag;
 		set.lines[evict_idx].timestamp = time;
 		time++;
-		param->evict++;		
+		param->evict++;
+		if(verbosity)
+			printf("EVICTION ");
 	}
 	
 	return;
@@ -158,7 +166,7 @@ int main(int argc, char *argv[])
 	
 	
 	
-	//int verbosity = 0;
+	int verbosity = 0;
 	
 	cache_param param;		// parameter storage for cache
 	cache sim_cache;		// cache declaration for sim
@@ -183,7 +191,7 @@ int main(int argc, char *argv[])
 				
 				break;
 			case 'v' :
-				//verbosity = 1;
+				verbosity = 1;
 				break;
 			case 'h' : 
 
@@ -209,26 +217,33 @@ int main(int argc, char *argv[])
 	fp = fopen(trace, "r");
 	if(fp != NULL){
 		while(fscanf(fp, " %c %llx,%d", &inst, &addr, &size) == 3){
+			if(verbosity) printf("%c %-10llx,%d : ", inst, addr, size);
 			switch(inst){
 				case 'I' :
+					if(verbosity) printf("NONE\n");
 					break;
 				
 				case 'L' :
-					run_cache(sim_cache, &param, addr);
+					run_cache(sim_cache, &param, addr, verbosity);
+					if(verbosity) printf("\n");
 					break;
 				
 				case 'S' :;
-					run_cache(sim_cache, &param, addr);
+					run_cache(sim_cache, &param, addr, verbosity);
+					if(verbosity) printf("\n");
 					break;
 				
 				case 'M' :
-					run_cache(sim_cache, &param, addr);
-					run_cache(sim_cache, &param, addr);
+					run_cache(sim_cache, &param, addr, verbosity);
+					run_cache(sim_cache, &param, addr, verbosity);
+					if(verbosity) printf("\n");
 					break;
 				
 				default :
 					break;
 			}
+						
+			
 		}
 	}
 	else{
