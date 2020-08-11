@@ -22,8 +22,34 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+	int r_idx, c_idx, r_blk, c_blk;
+	int buffer[3];
+	
+	if(N != 64){
+		buffer[2] = 0;
+		// Blocking size : 32 * 8
+		for(r_blk = 0; r_blk < N; r_blk += 32){
+			for(c_blk = 0; c_blk < M; c_blk += 8){
+				for(r_idx = r_blk; r_idx < r_blk + 32 && r_idx < N; r_idx++){
+					for(c_idx = c_blk; c_idx < c_blk + 8 && c_idx < M; c_idx++){
+						if(r_idx != c_idx){
+							B[c_idx][r_idx] = A[r_idx][c_idx];
+						}
+						else{
+							buffer[0] = A[r_idx][c_idx];
+							buffer[1] = r_idx;
+							buffer[2] = 1;
+						}
+					}
+					if(buffer[2]){
+						B[buffer[1]][buffer[1]] = buffer[0];
+						buffer[2] = 0;
+					}
+				}
+			}
+		}
+	}         
 }
-
 /* 
  * You can define additional transpose functions below. We've defined
  * a simple one below to help you get started. 
