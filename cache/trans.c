@@ -20,18 +20,20 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
  *     be graded. 
  */
 char transpose_submit_desc[] = "Transpose submission";
+
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
 	int r_idx, c_idx, r_blk, c_blk;
-	int idx;
-	int buffer[3];
-	int buff[8];
+	int buffer[8];
 	
+	// (61 * 67) & (32 * 32) input
 	if(N != 64){
+		// buffer[2] used as index for flag of diagonal access
 		buffer[2] = 0;
 		// Blocking size : 32 * 8
 		for(r_blk = 0; r_blk < N; r_blk += 32){
 			for(c_blk = 0; c_blk < M; c_blk += 8){
+				// Limit check(N,M) for (61 * 67) input 
 				for(r_idx = r_blk; r_idx < r_blk + 32 && r_idx < N; r_idx++){
 					for(c_idx = c_blk; c_idx < c_blk + 8 && c_idx < M; c_idx++){
 						if(r_idx != c_idx){
@@ -43,6 +45,7 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 							buffer[2] = 1;
 						}
 					}
+					// Diagonal element access
 					if(buffer[2]){
 						B[buffer[1]][buffer[1]] = buffer[0];
 						buffer[2] = 0;
@@ -51,112 +54,69 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 			}
 		}
 	}
+	// (64 * 64) input
 	else{
-		buffer[2] = 0;
-
+		// Blocking size (4 * 8) X 2
 		for(r_blk = 0; r_blk < N; r_blk += 8){
 			for(c_blk = 0; c_blk < M; c_blk += 8){
+				// First half
 				for(r_idx = r_blk; r_idx < r_blk + 4;  r_idx++){
+					for(c_idx = c_blk; c_idx < c_blk + 8; c_idx++){
+						buffer[c_idx - c_blk] = A[r_idx][c_idx];
+					}
 					for(c_idx = c_blk; c_idx < c_blk + 4; c_idx++){
-						if(r_idx != c_idx){
-							B[c_idx][r_idx] = A[r_idx][c_idx];
-						}
-						else{
-							buffer[0] = A[r_idx][c_idx];
-							buffer[1] = r_idx;
-							buffer[2] = 1;
-						}
+						B[c_idx][r_idx] = buffer[c_idx - c_blk];
+						B[c_idx][r_idx + 4] = buffer[c_idx - c_blk + 4];
 					}
-					if(buffer[2]){
-						B[buffer[1]][buffer[1]] = buffer[0];
-						buffer[2] = 0;
+				}
+				
+				// Second half
+				for(r_idx = r_blk + 4; r_idx < r_blk + 8; r_idx++){
+					for(c_idx = c_blk; c_idx < c_blk + 8; c_idx++){
+						buffer[c_idx - c_blk] = A[r_idx][c_idx];
 					}
-					
 					for(c_idx = c_blk + 4; c_idx < c_blk + 8; c_idx++){
-						if(r_idx != (c_idx-4)){
-							B[c_idx-4][r_idx + 4] = A[r_idx][c_idx];
-						}
-						else{
-							buffer[0] = A[r_idx][c_idx];
-							buffer[1] = r_idx;
-							buffer[2] = 1;
-						}						
-												
-					}
-					
-					if(buffer[2]){
-						B[buffer[1]][buffer[1] + 4] = buffer[0];
-						buffer[2] = 0;
-					}
+						B[c_idx][r_idx - 4] = buffer[c_idx - c_blk - 4];
+						B[c_idx][r_idx] = buffer[c_idx - c_blk];
+					}					
 				}
 				
-				for(r_idx = r_blk + 4; r_idx < r_blk + 8;  r_idx++){
-					for(c_idx = c_blk; c_idx < c_blk + 4; c_idx++){
-						if((r_idx-4) != c_idx){
-							B[c_idx + 4][r_idx - 4] = A[r_idx][c_idx];
-						}
-						else{
-							buffer[0] = A[r_idx][c_idx];
-							buffer[1] = r_idx;
-							buffer[2] = 1;
-						}						
-					}
-					if(buffer[2]){
-						B[buffer[1]][buffer[1]-4] = buffer[0];
-						buffer[2] = 0;
-					}				
+				// Interchanging mis-allocated elements
+				for(r_idx = 0; r_idx < 4; r_idx++){	
+					buffer[0] = B[c_blk + 4 + r_idx][r_blk + 0];
+					buffer[1] = B[c_blk + 4 + r_idx][r_blk + 1];
+					buffer[2] = B[c_blk + 4 + r_idx][r_blk + 2];
+					buffer[3] = B[c_blk + 4 + r_idx][r_blk + 3];
 					
-					for(c_idx = c_blk + 4; c_idx < c_blk + 8; c_idx++){
-						if(r_idx != c_idx){
-							B[c_idx][r_idx] = A[r_idx][c_idx];
-						}
-						else{
-							buffer[0] = A[r_idx][c_idx];
-							buffer[1] = r_idx;
-							buffer[2] = 1;
-						}						
-					}
+					buffer[4] = B[c_blk + r_idx][r_blk + 4];
+					buffer[5] = B[c_blk + r_idx][r_blk + 5];
+					buffer[6] = B[c_blk + r_idx][r_blk + 6];
+					buffer[7] = B[c_blk + r_idx][r_blk + 7];
 					
-					if(buffer[2]){
-						B[buffer[1]][buffer[1]] = buffer[0];
-						buffer[2] = 0;
-					}
-				}
-				
-				
-				for(idx = 0; idx < 4; idx++){
+					
+					B[c_blk + r_idx][r_blk + 4] = buffer[0];
+					B[c_blk + r_idx][r_blk + 5] = buffer[1];
+					B[c_blk + r_idx][r_blk + 6] = buffer[2];
+					B[c_blk + r_idx][r_blk + 7] = buffer[3];
 
-					
-					buff[4] = B[c_blk + 4 + idx][r_blk + 0];
-					buff[5] = B[c_blk + 4 + idx][r_blk + 1];
-					buff[6] = B[c_blk + 4 + idx][r_blk + 2];
-					buff[7] = B[c_blk + 4 + idx][r_blk + 3];
-					
-					buff[0] = B[c_blk + idx][r_blk + 4];
-					buff[1] = B[c_blk + idx][r_blk + 5];
-					buff[2] = B[c_blk + idx][r_blk + 6];
-					buff[3] = B[c_blk + idx][r_blk + 7];
-					
-					
-					B[c_blk + idx][r_blk + 4] = buff[4];
-					B[c_blk + idx][r_blk + 5] = buff[5];
-					B[c_blk + idx][r_blk + 6] = buff[6];
-					B[c_blk + idx][r_blk + 7] = buff[7];
-
-					B[c_blk + 4 + idx][r_blk + 0] = buff[0];
-					B[c_blk + 4 + idx][r_blk + 1] = buff[1];
-					B[c_blk + 4 + idx][r_blk + 2] = buff[2];
-					B[c_blk + 4 + idx][r_blk + 3] = buff[3];
+					B[c_blk + 4 + r_idx][r_blk + 0] = buffer[4];
+					B[c_blk + 4 + r_idx][r_blk + 1] = buffer[5];
+					B[c_blk + 4 + r_idx][r_blk + 2] = buffer[6];
+					B[c_blk + 4 + r_idx][r_blk + 3] = buffer[7];
 				}
-				
-				
 			}
 		}
 	}
-	
-	
-	
 }
+
+
+
+
+
+
+
+
+
 /* 
  * You can define additional transpose functions below. We've defined
  * a simple one below to help you get started. 
