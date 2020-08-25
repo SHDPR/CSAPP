@@ -227,7 +227,7 @@ void eval(char *cmdline)
 			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
 			addjob(jobs, pid, BG, cmdline);
 			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
-			
+			printf("[%d] (%d) %s", pid2jid(pid), (int)pid, cmdline);
 		}	
 	}
     return;
@@ -296,6 +296,28 @@ int parseline(const char *cmdline, char **argv)
  */
 int builtin_cmd(char **argv) 
 {
+	/* Check for below commands */
+	/* jobs, bg, fg, quit */
+	
+	if(strcmp(argv[0], "jobs") == 0){
+		listjobs(jobs);
+		return 1;
+	}
+	
+	if(strcmp(argv[0], "bg") == 0){
+		do_bgfg(argv);
+		return 1;
+	}
+	
+	if(strcmp(argv[0], "fg") == 0){
+		do_bgfg(argv);
+		return 1;
+	}
+	
+	if(strcmp(argv[0], "quit") == 0){
+		exit(0);
+	}
+
     return 0;     /* not a builtin command */
 }
 
