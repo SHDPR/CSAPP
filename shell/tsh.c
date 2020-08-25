@@ -85,6 +85,16 @@ void app_error(char *msg);
 typedef void handler_t(int);
 handler_t *Signal(int signum, handler_t *handler);
 
+/* Error-handling wrappers */
+pid_t Fork(void);
+void Setpgid(pid_t pid, pid_t pgid);
+void Sigemptyset(sigset_t *set);
+void Sigfillset(sigset_t *set);
+void Sigaddset(sigset_t *set, int signal);
+void Sigprocmask(int signal, sigset_t *set, sigset_t *prev);
+
+
+
 /*
  * main - The shell's main routine 
  */
@@ -165,6 +175,61 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
+	int run_bg;					// Should the job run in the background?
+	char *args[MAXARGS];		// Arguments parsed
+	
+	sigset_t mask_one;			// Mask blocking SIGCHLD signal
+	sigset_t mask_all;			// Mask blocking all signals
+	pid_t pid;					// Process ID
+	
+	run_bg = parseline(cmdline, args);
+	
+	if(args[0] == NULL) return;
+	
+	/* If args is built_in command, executed through builtin_cmd() */
+	/* Else, fork a child process and execve command */
+	
+	if(!builtin_cmd(args)){
+		/* Initializing mask sets */
+		Sigfillset(&mask_all);
+		Sigemptyset(&mask_one);
+		Sigaddset(&mask_one, SIGCHLD);
+		/* Block SIGCHLD */
+		Sigprocmask(SIG_BLOCK, &mask_one, NULL);
+		
+		/* Child process */
+		if((pid = Fork()) == 0){
+			/* Set unique process group for each chilid process */
+			/* pid = 0  : process ID of calling process used */
+			/* pgid = 0 : process group ID set to process ID of calling process */
+			Setpgid(0,0);
+			/* Unblock SIGCHLD */
+			Sigprocmask(SIG_UNBLOCK, &mask_one, NULL);
+
+			if(execve(args[0], args, environ) < 0){
+				printf("%s : Command not found\n", args[0]);
+				exit(0);
+			}
+		}
+		
+		/* Parent process */
+		/* Foreground job */
+		if(!run_bg){
+			/* Protect access to shared job queue */
+			Sigprocmask(SIG_BLOCK, &mask_all, NULL);
+			addjob(jobs, pid, FG, cmdline);
+			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
+			/* Wait for foreground job to finish */
+			waitfg(pid);
+		}
+		/* Background job */
+		else{
+			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
+			addjob(jobs, pid, BG, cmdline);
+			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
+			
+		}	
+	}
     return;
 }
 
@@ -504,6 +569,47 @@ void sigquit_handler(int sig)
     printf("Terminating after receipt of SIGQUIT signal\n");
     exit(1);
 }
+
+/* Error-handling Wrappers (Stevens-style) */
+
+pid_t Fork(void){
+	pid_t pid;
+	if ((pid = fork()) < 0) 
+		unix_error("Fork error");
+	return pid;
+}
+
+void Setpgid(pid_t pid, pid_t pgid){
+	if(setpgid(pid, pgid) < 0)
+		unix_error("Setpgid error");
+	return;
+}
+
+void Sigemptyset(sigset_t *set){
+	if(sigemptyset(set) < 0) 
+		unix_error("Sigaddset error");
+	return;
+}
+
+void Sigfillset(sigset_t *set){
+	if(sigfillset(set) < 0) 
+		unix_error("Sigfillset error");
+	return;
+}
+
+void Sigaddset(sigset_t *set, int signal){
+	if(sigaddset(set, signal) < 0)
+		unix_error("Sigaddset error");
+	return;
+}
+
+void Sigprocmask(int signal, sigset_t *set, sigset_t *prev){
+	if(sigprocmask(signal, set, prev) < 0)
+		unix_error("Sigprocmask error");
+	return;
+}
+
+
 
 
 
