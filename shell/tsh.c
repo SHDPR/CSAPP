@@ -87,6 +87,7 @@ handler_t *Signal(int signum, handler_t *handler);
 
 /* Error-handling wrappers */
 pid_t Fork(void);
+void Kill(pid_t pid, int signal);
 void Setpgid(pid_t pid, pid_t pgid);
 void Sigemptyset(sigset_t *set);
 void Sigfillset(sigset_t *set);
@@ -298,23 +299,24 @@ int builtin_cmd(char **argv)
 {
 	/* Check for below commands */
 	/* jobs, bg, fg, quit */
+	char *cmd = argv[0];
 	
-	if(strcmp(argv[0], "jobs") == 0){
+	if(strcmp(cmd, "jobs") == 0){
 		listjobs(jobs);
 		return 1;
 	}
 	
-	if(strcmp(argv[0], "bg") == 0){
+	if(strcmp(cmd, "bg") == 0){
 		do_bgfg(argv);
 		return 1;
 	}
 	
-	if(strcmp(argv[0], "fg") == 0){
+	if(strcmp(cmd, "fg") == 0){
 		do_bgfg(argv);
 		return 1;
 	}
 	
-	if(strcmp(argv[0], "quit") == 0){
+	if(strcmp(cmd, "quit") == 0){
 		exit(0);
 	}
 
@@ -322,10 +324,40 @@ int builtin_cmd(char **argv)
 }
 
 /* 
- * do_bgfg - Execute the builtin bg and fg commands
- */
+ * do_bgfg - Execute the builtin bg and fg commands */
+
 void do_bgfg(char **argv) 
 {
+	char *action = argv[0];			// command (bg or fg)
+	char *id = argv[1];				// argument ID (%jobID or process ID)
+	struct job_t *findjob;
+	
+	/* ID argument not given */
+	if(id == NULL){
+		printf("%s command requires PID or %%jobid argument\n", action);
+	}
+	/* ID argument in a bad format */
+	if((id[0] != '%') && !isdigit(id[0])){
+		printf("%s : argument must be a PID or %%jobid\n", action);
+	}
+	/* Checking if given ID is job ID or process ID */
+	int id_is = (id[0] == '%')? 1 : 0;
+	
+	
+	
+	if(id_is){
+		/* atoi(char * str) : converts string to integer */
+		findjob = getjobjid(jobs, atoi(&argv[1][1]));
+		
+	}
+	else{
+		
+	}
+	
+	
+	
+	
+	
     return;
 }
 
@@ -593,12 +625,19 @@ void sigquit_handler(int sig)
 }
 
 /* Error-handling Wrappers (Stevens-style) */
+/* Wrappers for linux style codes */
 
 pid_t Fork(void){
 	pid_t pid;
 	if ((pid = fork()) < 0) 
 		unix_error("Fork error");
 	return pid;
+}
+
+void Kill(pid_t pid, int signal){
+	if (kill(pid, signal) < 0)
+		unix_error("Kill error");
+	return;
 }
 
 void Setpgid(pid_t pid, pid_t pgid){
@@ -630,8 +669,3 @@ void Sigprocmask(int signal, sigset_t *set, sigset_t *prev){
 		unix_error("Sigprocmask error");
 	return;
 }
-
-
-
-
-
