@@ -176,14 +176,16 @@ int main(int argc, char **argv)
 */
 void eval(char *cmdline) 
 {
-	int run_bg;					// Should the job run in the background?
+	int bg;						// Should the job run in bg or fg?
 	char *args[MAXARGS];		// Arguments parsed
+	char buf[MAXLINE];			// Holds modified command line
 	
 	sigset_t mask_one;			// Mask blocking SIGCHLD signal
 	sigset_t mask_all;			// Mask blocking all signals
 	pid_t pid;					// Process ID
 	
-	run_bg = parseline(cmdline, args);
+	strcpy(buf, cmdline);
+	bg = parseline(buf, args);
 	
 	if(args[0] == NULL) return;
 	
@@ -215,10 +217,10 @@ void eval(char *cmdline)
 		
 		/* Parent process */
 		/* Foreground job */
-		if(!run_bg){
+		if(!bg){
 			/* Protect access to shared job queue */
 			Sigprocmask(SIG_BLOCK, &mask_all, NULL);
-			addjob(jobs, pid, FG, cmdline);
+			addjob(jobs, pid, FG, buf);
 			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
 			/* Wait for foreground job to finish */
 			waitfg(pid);
@@ -226,9 +228,9 @@ void eval(char *cmdline)
 		/* Background job */
 		else{
 			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
-			addjob(jobs, pid, BG, cmdline);
+			addjob(jobs, pid, BG, buf);
 			Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
-			printf("[%d] (%d) %s", pid2jid(pid), (int)pid, cmdline);
+			printf("[%d] (%d) %s", pid2jid(pid), (int)pid, buf);
 		}	
 	}
     return;
@@ -342,22 +344,37 @@ void do_bgfg(char **argv)
 	}
 	/* Checking if given ID is job ID or process ID */
 	int id_is = (id[0] == '%')? 1 : 0;
-	
-	
-	
+	/* job ID */
 	if(id_is){
 		/* atoi(char * str) : converts string to integer */
-		findjob = getjobjid(jobs, atoi(&argv[1][1]));
-		
+		findjob = getjobjid(jobs, atoi(&id[1]));
+		if(findjob == NULL){
+			printf("%s : No such job\n", id);
+			return;
+		}
 	}
+	/* process ID */
 	else{
-		
+		findjob = getjobpid(jobs, atoi(id));
+		if(findjob == NULL){
+			printf("%s : No such process\n", id);
+			return;
+		}
 	}
-	
-	
-	
-	
-	
+	/* Background job */
+	if(strcmp(action, "bg") == 0){
+		findjob->state = BG;
+		printf("[%d] (%d) %s", findjob->jid, findjob->pid, findjob->cmdline);
+		/* Kill SIGCONT to all process in the same group */
+		Kill(-(findjob->pid), SIGCONT);
+	}
+	/* Foreground job */
+	else{
+		findjob->state = FG;
+		printf("[%d] (%d) %s", findjob->jid, findjob->pid, findjob->cmdline);
+		Kill(-(findjob->pid), SIGCONT);
+		waitfg(findjob->pid);
+	}	
     return;
 }
 
