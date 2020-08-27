@@ -386,6 +386,7 @@ void waitfg(pid_t pid)
 {
 	/* Use a busy loop around the sleep function */
 	while(1){
+		/* Until foreground job finishes */
 		if(pid != fgpid(jobs))
 			break;
 		else
@@ -414,12 +415,12 @@ void sigchld_handler(int sig)
 	//char *msg;
 	
 	sigset_t mask_all;			// Mask blocking all signals
-	sigset_t mask_prev;			// Mask of previous stage
+	Sigfillset(&mask_all);
 	
 	/* WNOHANG   : Do not wait for process in action currently, but return immediatly */
 	/* WUNTRACED : Check for process in stopped state currently						  */
-	while((pid = Waitpid(-1, &status, WNOHANG | WUNTRACED)) < 0){
-		Sigprocmask(SIG_BLOCK, &mask_all, &mask_prev);
+	while((pid = Waitpid(-1, &status, WNOHANG | WUNTRACED)) > 0){
+		Sigprocmask(SIG_BLOCK, &mask_all, NULL);
 		jid = pid2jid(pid);
 		/* Checking if the child terminated normally */
 		if(WIFEXITED(status)){
@@ -428,6 +429,7 @@ void sigchld_handler(int sig)
 		/* Checking if the child terminated due to signal not caught */
 		else if(WIFSIGNALED(status)){
 			deletejob(jobs, pid);		
+			printf("Job [%d] (%d) terminated by signal %d\n", jid, (int)pid, WTERMSIG(status));
 		}
 		/* Checking if the child is now stopped */
 		/* Kernel sends shell when child stops either */
@@ -435,7 +437,7 @@ void sigchld_handler(int sig)
 			getjobpid(jobs, pid)->state = ST;
 			printf("Job [%d] (%d) stopped by signal %d\n", jid, (int)pid, WSTOPSIG(status));
 		}
-		Sigprocmask(SIG_UNBLOCK, &mask_prev, NULL);
+		Sigprocmask(SIG_UNBLOCK, &mask_all, NULL);
 	}
 	
     return;
@@ -448,6 +450,11 @@ void sigchld_handler(int sig)
  */
 void sigint_handler(int sig) 
 {
+	/* Find foreground job */
+	pid_t pid = fgpid(jobs);
+	if(pid != 0){
+		Kill(-pid, sig);
+	}
     return;
 }
 
@@ -458,6 +465,10 @@ void sigint_handler(int sig)
  */
 void sigtstp_handler(int sig) 
 {
+	pid_t pid= fgpid(jobs);
+	if(pid != 0){
+		Kill(-pid, sig);
+	}
     return;
 }
 
@@ -699,7 +710,7 @@ void Kill(pid_t pid, int signal){
 pid_t Waitpid(pid_t pid, int *stat_loc, int options){
 	pid_t pid_ret;
 	if((pid_ret = waitpid(pid, stat_loc, options)) < 0)
-		unix_error("Waitpid error");
+		;
 	return pid_ret;
 }
 
