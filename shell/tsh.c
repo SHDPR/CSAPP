@@ -383,6 +383,13 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+	/* Use a busy loop around the sleep function */
+	while(1){
+		if(pid != fgpid(jobs))
+			break;
+		else
+			sleep(1);
+	}
     return;
 }
 
