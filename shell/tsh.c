@@ -88,6 +88,7 @@ handler_t *Signal(int signum, handler_t *handler);
 /* Error-handling wrappers */
 pid_t Fork(void);
 void Kill(pid_t pid, int signal);
+pid_t Waitpid(pid_t pid, int *stat_loc, int options);
 void Setpgid(pid_t pid, pid_t pgid);
 void Sigemptyset(sigset_t *set);
 void Sigfillset(sigset_t *set);
@@ -406,6 +407,37 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
+	pid_t pid;					// Process ID
+	int status;					// Status 
+	int jid;					// Job ID		 for terminating child
+	
+	//char *msg;
+	
+	sigset_t mask_all;			// Mask blocking all signals
+	sigset_t mask_prev;			// Mask of previous stage
+	
+	/* WNOHANG   : Do not wait for process in action currently, but return immediatly */
+	/* WUNTRACED : Check for process in stopped state currently						  */
+	while((pid = Waitpid(-1, &status, WNOHANG | WUNTRACED)) < 0){
+		Sigprocmask(SIG_BLOCK, &mask_all, &mask_prev);
+		jid = pid2jid(pid);
+		/* Checking if the child terminated normally */
+		if(WIFEXITED(status)){
+			deletejob(jobs, pid);
+		}
+		/* Checking if the child terminated due to signal not caught */
+		else if(WIFSIGNALED(status)){
+			deletejob(jobs, pid);		
+		}
+		/* Checking if the child is now stopped */
+		/* Kernel sends shell when child stops either */
+		else if(WIFSTOPPED(status)){
+			getjobpid(jobs, pid)->state = ST;
+			printf("Job [%d] (%d) stopped by signal %d\n", jid, (int)pid, WSTOPSIG(status));
+		}
+		Sigprocmask(SIG_UNBLOCK, &mask_prev, NULL);
+	}
+	
     return;
 }
 
@@ -662,6 +694,13 @@ void Kill(pid_t pid, int signal){
 	if (kill(pid, signal) < 0)
 		unix_error("Kill error");
 	return;
+}
+
+pid_t Waitpid(pid_t pid, int *stat_loc, int options){
+	pid_t pid_ret;
+	if((pid_ret = waitpid(pid, stat_loc, options)) < 0)
+		unix_error("Waitpid error");
+	return pid_ret;
 }
 
 void Setpgid(pid_t pid, pid_t pgid){
