@@ -1,7 +1,7 @@
 /* 
  * tsh - A tiny shell program with job control
  * 
- * <Put your name and login ID here>
+ * 20150310 Sangmin Park
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -203,7 +203,7 @@ void eval(char *cmdline)
 		
 		/* Child process */
 		if((pid = Fork()) == 0){
-			/* Set unique process group for each chilid process */
+			/* Set unique process group for each child process */
 			/* pid = 0  : process ID of calling process used */
 			/* pgid = 0 : process group ID set to process ID of calling process */
 			Setpgid(0,0);
@@ -408,11 +408,9 @@ void waitfg(pid_t pid)
  */
 void sigchld_handler(int sig) 
 {
-	pid_t pid;					// Process ID
-	int status;					// Status 
-	int jid;					// Job ID		 for terminating child
-	
-	//char *msg;
+	pid_t pid;					// Process ID -----------
+	int status;					// Status --------------- 
+	int jid;					// Job ID ---------------for terminating child
 	
 	sigset_t mask_all;			// Mask blocking all signals
 	Sigfillset(&mask_all);
