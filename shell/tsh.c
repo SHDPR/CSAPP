@@ -94,6 +94,7 @@ void Sigemptyset(sigset_t *set);
 void Sigfillset(sigset_t *set);
 void Sigaddset(sigset_t *set, int signal);
 void Sigprocmask(int signal, sigset_t *set, sigset_t *prev);
+void Sigsuspend(sigset_t *mask);
 
 
 
@@ -384,13 +385,16 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
-	/* Use a busy loop around the sleep function */
+	sigset_t prev;
+	
+	Sigemptyset(&prev);
+	
+
 	while(1){
-		/* Until foreground job finishes */
 		if(pid != fgpid(jobs))
-			break;
-		else
-			sleep(1);
+			return;
+		
+		Sigsuspend(&prev);
 	}
     return;
 }
@@ -739,5 +743,11 @@ void Sigaddset(sigset_t *set, int signal){
 void Sigprocmask(int signal, sigset_t *set, sigset_t *prev){
 	if(sigprocmask(signal, set, prev) < 0)
 		unix_error("Sigprocmask error");
+	return;
+}
+
+void Sigsuspend(sigset_t *mask){
+	if(sigsuspend(mask) != -1)
+		unix_error("Sigsuspend error");
 	return;
 }
