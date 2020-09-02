@@ -393,7 +393,7 @@ void waitfg(pid_t pid)
 	while(1){
 		if(pid != fgpid(jobs))
 			return;
-		
+		// Use sigsuspend instead of pause, sleep
 		Sigsuspend(&prev);
 	}
     return;
