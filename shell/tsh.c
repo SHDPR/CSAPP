@@ -385,11 +385,11 @@ void do_bgfg(char **argv)
  */
 void waitfg(pid_t pid)
 {
+	// Do not use busy loop of sleep or pause here!
 	sigset_t prev;
-	
 	Sigemptyset(&prev);
 	
-
+	// Until foreground finishes, call sigsuspend
 	while(1){
 		if(pid != fgpid(jobs))
 			return;
