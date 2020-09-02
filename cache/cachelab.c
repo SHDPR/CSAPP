@@ -1,6 +1,5 @@
 /*
  * cachelab.c - Cache Lab helper functions
-	20150310 Sangmin Park
  */
 #include <stdio.h>
 #include <stdlib.h>
