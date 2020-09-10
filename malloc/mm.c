@@ -71,8 +71,8 @@ team_t team = {
 #define GET_ALLOC(p) (GET(p) & 0x1)
 
 /* Given block ptr bp, compute address of its header and footer */
-#define HDPR(bp) ((char *)(bp) - WSIZE)
-#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDPR(bp)) - DSIZE)
+#define HDRP(bp) ((char *)(bp) - WSIZE)
+#define FTRP(bp) ((char *)(bp) + GET_SIZE(HDRP(bp)) - DSIZE)
 
 /* Given block ptr bp, compute address of next and previous blocks */
 #define NEXT_BLKP(bp) ((char *)(bp) + GET_SIZE(((char *)(bp) - WSIZE)))
@@ -131,6 +131,37 @@ bp+WSIZE--> +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-
 */
 ///////////////////////////////// End of Block information /////////////////////////////////////////////////////////
 
+///////////////////////////////////////// Helper functions /////////////////////////////////////////////////////////
+
+
+
+
+static void *extend_heap(size_t size)
+{
+	void *ptr;						
+	size_t asize = ALIGN(size);		/* Adjusted size, which is rounded up */
+	
+	/* Allocate new free block to the heap */
+	if((long)(ptr = mem_sbrk(asize)) == (void *)-1)
+		return NULL;
+	
+	/* Initialize free block header/footer and the epilogue header */
+	PUT(HDRP(ptr), PACK(asize, 0));					/* Free block header */
+	PUT(FTRP(ptr), PACK(asize, 0));					/* Free block footer */
+	PUT(HDRP(NEXT_BLKP(ptr)), PACK(0, 1));			/* New epilolgue header */
+	
+	
+	
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -139,6 +170,27 @@ bp+WSIZE--> +--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+--+-
  */
 int mm_init(void)
 {
+	char *heap_start; 		/* Pointer to the beginning of heap */
+	int list_idx;			/* List index for segregated free lists */
+	
+	/* Free lists initialization */
+	for(list_idx = 0; list_idx < LISTLIMIT; list_idx++){
+		segregated_free_lists[list_idx] = NULL;
+	}
+	
+	/* Create the initial empty heap */
+	if((long)(heap_start = mem_sbrk(4 * WSIZE)) == (void *)-1)
+		return -1;
+	
+	PUT(heap_start, 0);									/* Alignment padding */
+	PUT(heap_start + (1 * WSIZE), PACK(DSIZE, 1));		/* Prologue header */
+	PUT(heap_start + (2 * WSIZE), PACK(DSIZE, 1));		/* Prologue footer */
+	PUT(heap_start + (3 * WSIZE), PACK(0, 1));			/* Epilogue header */
+	
+	/* Extend the empty heap with a free block of CHUNKSIZE bytes */
+	if(extend_heap(CHUNKSIZE) == NULL)
+		return -1;
+	
     return 0;
 }
 
